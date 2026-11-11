@@ -21,6 +21,18 @@
           }
         ]
       }
+    ],
+    "redirects": [
+      {
+        "source": "/connect/eliminar-cuenta{,/**}",
+        "destination": "/connect/delete-account/",
+        "type": 301
+      },
+      {
+        "source": "/connect/privacidad{,/,.html}",
+        "destination": "/connect/privacy/",
+        "type": 301
+      }
     ]
   }
 }

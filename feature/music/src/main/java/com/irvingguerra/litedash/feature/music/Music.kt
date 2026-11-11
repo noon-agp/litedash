@@ -67,6 +67,8 @@ private const val KEY_PREFERRED = "preferred_app"
 private const val KEY_PREFERRED_MOVED = "preferred_moved"
 /** El método de música elegido ([MusicMode]). */
 private const val KEY_MODE = "music_mode"
+/** Lo que se espera la carátula que el celular anunció antes de buscarla por título y artista. */
+private const val PHONE_ART_WAIT_MS = 3_000L
 /** Ya se revisó una vez la app de Bluetooth enlazada ([MusicRepository.fixBluetoothLink]). */
 private const val KEY_BT_FIXED = "bt_link_fixed"
 
@@ -644,6 +646,49 @@ class MusicRepository(private val context: Context) {
         radio.onWake = { resumeRadio() }
     }
 
+    /**
+     * Lo que suena en el celular por LiteDash Connect (Link); null = nada o sin conexión. Entra en el método
+     * Bluetooth (y en App sin app elegida o con la de Bluetooth, si no suena nada en la pantalla) y manda
+     * sobre AVRCP y los avisos de la marca: el dato sale del celular, igual en todas las pantallas.
+     */
+    private var phoneSong: Song? = null
+    /** El celular tiene carátula y llega aparte: mientras, no se busca en iTunes. */
+    private var phoneArtComing = false
+
+    /** Manda play, pausa, siguiente, anterior o salto (ms) al celular; falso si ya no hay enlace. */
+    var phoneControl: ((String, Long) -> Boolean)? = null
+
+    fun fromPhone(song: Song?, artComing: Boolean) {
+        phoneSong = song
+        phoneArtComing = artComing
+        // Si la carátula anunciada no llega pronto, se busca como cualquier canción por Bluetooth.
+        mainHandler.removeCallbacks(artLate)
+        if (artComing) mainHandler.postDelayed(artLate, PHONE_ART_WAIT_MS)
+        if (users > 0) music.read()
+    }
+
+    private val artLate = Runnable {
+        phoneArtComing = false
+        if (users > 0) music.read()
+    }
+
+    /** La canción del celular, si toca mostrarla en [lens]. */
+    private fun phoneFor(lens: Lens): Song? {
+        val s = phoneSong?.takeIf { lens === music } ?: return null
+        return when (mode) {
+            MusicMode.FILES -> null
+            // El celular en pausa no le gana a otra música por Bluetooth que sí suena (otro celular).
+            MusicMode.BLUETOOTH -> s.takeIf { it.playing || lens.controller?.playbackState?.state != PlaybackState.STATE_PLAYING }
+            MusicMode.APP -> {
+                val app = modeApp
+                if (app != null && app != bluetoothApp()) return null
+                // Algo de la pantalla suena (que no sea el Bluetooth): eso es lo que se escucha.
+                val local = lens.controller?.takeIf { it.packageName != avrcpPackage && it.packageName != bluetoothApp() }
+                s.takeIf { local?.playbackState?.state != PlaybackState.STATE_PLAYING && (s.playing || local == null) }
+            }
+        }
+    }
+
     /** Cada pieza elige su sesión de la misma lista. */
     private fun choose(list: List<MediaController>) {
         // Otra app empezó a sonar: lo que LiteDash suponía de la de Bluetooth o FM ya no vale.
@@ -787,6 +832,11 @@ class MusicRepository(private val context: Context) {
         }
 
         internal fun read() {
+            phoneFor(this)?.let { phone ->
+                song = if (phone.artwork != null || phoneArtComing) phone else withCover(phone)
+                starting = null
+                return
+            }
             val c = controller
             val m = c?.metadata
             if (c == null) {
@@ -929,6 +979,14 @@ class MusicRepository(private val context: Context) {
          */
         fun toggle() {
             val s = song ?: return onWake()
+            if (s.phone && phone(if (s.playing) "pause" else "play")) {
+                // Sin esperar al celular: el botón cambia ya (también lo guardado, para que otra lectura no lo
+                // regrese) y su siguiente aviso lo confirma.
+                val now = SystemClock.elapsedRealtime()
+                phoneSong = phoneSong?.copy(playing = !s.playing, positionMs = s.currentPosition(), readAt = now)
+                song = s.copy(playing = !s.playing, positionMs = s.currentPosition(), readAt = now)
+                return
+            }
             factoryFor(this)?.let { f ->
                 if (!s.playing) return onWake()
                 trace("${f.tag} pausa")
@@ -954,11 +1012,13 @@ class MusicRepository(private val context: Context) {
          * teclas (casi siempre la estación guardada que sigue o buscar la siguiente).
          */
         fun next() {
+            if (song?.phone == true && phone("next")) return
             factoryFor(this)?.let { trace("${it.tag} siguiente"); return it.next() }
             controller?.transportControls?.takeUnless { song?.blind == true || keysOnly(PlaybackState.ACTION_SKIP_TO_NEXT) }?.skipToNext() ?: press(this, KeyEvent.KEYCODE_MEDIA_NEXT)
         }
 
         fun previous() {
+            if (song?.phone == true && phone("prev")) return
             factoryFor(this)?.let { trace("${it.tag} anterior"); return it.previous() }
             controller?.transportControls?.takeUnless { song?.blind == true || keysOnly(PlaybackState.ACTION_SKIP_TO_PREVIOUS) }?.skipToPrevious() ?: press(this, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
         }
@@ -973,7 +1033,18 @@ class MusicRepository(private val context: Context) {
             if (this !== radio || isOwn(c.packageName)) return false
             return (c.playbackState?.actions ?: 0L) and action == 0L && canKey(this)
         }
-        fun seekTo(ms: Long) = controller?.transportControls?.seekTo(ms)
+        fun seekTo(ms: Long) {
+            val s = song
+            if (s?.phone == true && phone("seek", ms)) {
+                val now = SystemClock.elapsedRealtime()
+                phoneSong = phoneSong?.copy(positionMs = ms, readAt = now)
+                song = s.copy(positionMs = ms, readAt = now)
+                return
+            }
+            controller?.transportControls?.seekTo(ms)
+        }
+
+        private fun phone(action: String, ms: Long = 0) = phoneControl?.invoke(action, ms) == true
         fun action(a: MediaAction) = controller?.transportControls?.sendCustomAction(a.id, null)
 
         /** Qué hacer con play sin sesión: la música despierta la última app; la radio, la FM o la de internet. */

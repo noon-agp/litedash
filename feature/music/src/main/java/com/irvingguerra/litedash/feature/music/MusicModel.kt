@@ -49,6 +49,8 @@ data class Song(
      * pausa van como teclas del volante, explícitas, y el estado es el que LiteDash supone.
      */
     val blind: Boolean = false,
+    /** Viene del celular por LiteDash Connect: los botones van por el enlace ([MusicRepository.phoneControl]). */
+    val phone: Boolean = false,
 ) {
     fun currentPosition(): Long {
         if (!playing) return positionMs

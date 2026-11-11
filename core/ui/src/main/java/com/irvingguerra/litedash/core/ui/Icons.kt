@@ -53,6 +53,8 @@ object Icons {
     val storm = icon("M7 15h10a4 4 0 0 0 0 -8a6 6 0 0 0 -11.5 1.5a3.3 3.3 0 0 0 1.5 6.5z M13 15l-2 3.5h3l-2 3.5")
     val snow = icon("M7 15h10a4 4 0 0 0 0 -8a6 6 0 0 0 -11.5 1.5a3.3 3.3 0 0 0 1.5 6.5z M8 19h.01 M12 20h.01 M16 19h.01 M10 22h.01 M14 22h.01")
     val fog = icon("M4 9h16 M3 13h18 M5 17h14 M8 21h8")
+    /** Persona en un círculo: la cuenta. */
+    val account = icon("M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0 M9 10a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M6.2 18.7a6.5 6.5 0 0 1 11.6 0")
     val bell = icon("M6 16v-5a6 6 0 0 1 12 0v5l2 2h-16z M10 21h4")
     val phoneCar = icon("M8 3h8a1 1 0 0 1 1 1v9a1 1 0 0 1 -1 1h-8a1 1 0 0 1 -1 -1v-9a1 1 0 0 1 1 -1z M11 11h2 M4 21l1.5 -4h13l1.5 4 M6 21h.01 M18 21h.01")
     // Motor (como la luz de "check engine"): el Taller del escáner OBD.

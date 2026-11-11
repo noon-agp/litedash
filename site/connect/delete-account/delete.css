@@ -1,0 +1,31 @@
+/* Eliminar la cuenta de LiteDash Connect (ES y EN) */
+.cuenta { margin-top: 12px; }
+.cuenta [hidden] { display: none !important; }
+.cuenta p { margin: 0 0 16px; }
+.cuenta button { font: inherit; cursor: pointer; }
+.cuenta .boton { background: transparent; color: var(--blanco); justify-content: center; }
+.cuenta .boton.principal { background: var(--blanco); color: var(--grafito); }
+.cuenta .boton.peligro { background: #e5484d; border-color: #e5484d; color: #fff; }
+.cuenta .boton.peligro:hover { background: #ec5d61; }
+.cuenta .boton:disabled { opacity: .5; cursor: default; }
+.cuenta-google { width: 100%; }
+.cuenta-google svg { flex: none; }
+.cuenta-separador { display: flex; align-items: center; gap: 12px; color: var(--suave); font-size: 14px; margin: 20px 0 !important; }
+.cuenta-separador::before, .cuenta-separador::after { content: ""; flex: 1; height: 1px; background: var(--linea); }
+.cuenta label { display: block; margin-bottom: 14px; font-size: 15px; color: var(--suave); }
+.cuenta input { display: block; width: 100%; margin-top: 6px; padding: 12px 14px; font: inherit; color: var(--blanco); background: var(--grafito); border: 1px solid var(--linea); border-radius: 12px; }
+.cuenta input:focus { outline: none; border-color: var(--ambar); }
+.cuenta-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.cuenta-enlace { background: none; border: 0; padding: 0; color: var(--suave); text-decoration: underline; font-size: 15px !important; }
+.cuenta-enlace:hover { color: var(--blanco); }
+.cuenta-confirmar { margin-top: 4px; padding-top: 16px; border-top: 1px solid var(--linea); }
+.cuenta-espera { color: var(--suave); }
+.cuenta-listo { margin: 0 !important; }
+.cuenta-mensaje { margin: 16px 0 0 !important; font-size: 15px; }
+.cuenta-mensaje:empty { display: none; }
+.cuenta-mensaje.error { color: #ff8a8d; }
+#email { overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .cuenta-acciones .boton { width: 100%; }
+  .texto h1 { font-size: 32px; }
+}

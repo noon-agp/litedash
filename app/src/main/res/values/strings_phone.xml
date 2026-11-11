@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Módulo Celular: vincular la pantalla con la app LiteDash Connect. -->
+<!-- Ajustes → Cuenta: vincular la pantalla con la app LiteDash Connect. -->
 <resources>
-    <string name="module_phone">Celular</string>
+    <string name="account">Cuenta</string>
+    <string name="account_help">Tu cuenta de LiteDash vive en la app LiteDash Connect de tu celular.</string>
+    <string name="phone_name">Celular</string>
     <string name="phone_link_title">Vincular con mi celular</string>
     <string name="phone_link_code">Código %1$s · vence en 5 minutos</string>
-    <string name="phone_step_install">Instala LiteDash Connect en tu celular</string>
+    <string name="phone_step_install">Instala LiteDash Connect y crea tu cuenta</string>
     <string name="phone_step_tap">Toca “Vincular mi pantalla”</string>
     <string name="phone_step_scan">Apunta la cámara a este código</string>
     <string name="phone_connected">Conectado</string>
     <string name="phone_offline">Sin conexión</string>
     <string name="phone_app_version">Versión de su app</string>
+    <string name="phone_music_blocked">Para ver aquí la música de tu celular, en LiteDash Connect toca “Permitir la música”.</string>
     <string name="phone_unlink">Desvincular</string>
 </resources>

@@ -6,14 +6,14 @@
   <title>Privacy — LiteDash Connect</title>
   <meta name="theme-color" content="#101317">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="alternate" hreflang="es" href="/connect/privacidad/">
+  <link rel="alternate" hreflang="es" href="/connect/privacy/">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <header class="barra">
     <div class="contenedor">
       <a class="logo" href="/en/" aria-label="LiteDash"><img src="/img/litedash-horizontal-sobre-oscuro.svg" alt="LiteDash" width="132" height="30"></a>
-      <nav><a class="idioma" href="/connect/privacidad/" hreflang="es" lang="es">ES</a></nav>
+      <nav><a class="idioma" href="/connect/privacy/" hreflang="es" lang="es">ES</a></nav>
     </div>
   </header>
   <main class="contenedor texto">
@@ -21,28 +21,35 @@
     <p>Last updated: November 10, 2026 · Applies to LiteDash Connect for Android, the phone app that goes with LiteDash. The car screen app has its own <a href="/en/privacy/">LiteDash policy</a>.</p>
 
     <h2>In short</h2>
-    <p><strong>LiteDash Connect does not collect or send personal data.</strong> It has no accounts, ads or analytics of its own. What it does is talk to the car screen you linked, over your local network, through an encrypted channel. The only thing that goes to the internet is anonymous technical data that Google's QR code reader (ML Kit) sends to Google about how it works; see below.</p>
+    <p><strong>LiteDash Connect stores the minimum and never sells or shares your data.</strong> It has no ads or analytics of its own. To use it you sign in with your account (Google or email); we only store what's explained below. Everything else is talking to the car screen you linked, over your local network, through an encrypted channel. Apart from your account, the only thing that goes to the internet is anonymous technical data that Google's QR code reader (ML Kit) sends to Google about how it works; see below too.</p>
+
+    <h2 id="account">Your account</h2>
+    <p>You sign in with <strong>Google</strong> or with <strong>email and password</strong>. We store your name, your email, how you signed in (Google or email), the app version, its language and the sign-up and last-use dates; if you sign in with Google, also your profile photo. Your password is stored encrypted by Firebase: we never see it. The screen you link is also stored with your account, with no data about you: its identifier, its model, its LiteDash version and the catalog car it shows.</p>
+    <p>It's used to register your account and, later on, to back up your LiteDash. It's stored in <strong>Google's Firebase</strong> (Authentication and Firestore). It's not shared, not sold and not used for ads. You can delete it anytime from the app (Your account → Privacy and data → Delete my account) or at <a href="/en/connect/delete-account/">Delete your account</a>.</p>
 
     <h2>Camera</h2>
-    <p>The camera is used <strong>only to read the QR code</strong> shown by your car's screen (Settings → Modules → Phone). The permission is requested only when you tap "Link my screen". The image is read on your phone at that moment: no photos are taken, no images are saved and nothing is sent anywhere.</p>
+    <p>The camera is used <strong>only to read the QR code</strong> shown by your car's screen (Settings → Account). The permission is requested only when you tap "Link my screen". The image is read on your phone at that moment: no photos are taken, no images are saved and nothing is sent anywhere.</p>
 
     <h2>The link with your screen</h2>
-    <p>When you link, the app saves <strong>only on your phone</strong>: the screen's identifier, the link key, your car's name and the screen model (and the date you linked). The key is encrypted with the Android keystore. This data is not backed up to the cloud and never leaves your phone.</p>
+    <p>When you link, the app saves <strong>on your phone</strong>: the screen's identifier, the link key, your car's name and the screen model (and the date you linked). The key is encrypted with the Android keystore. The key never leaves your phone; of the screen, your account only stores what <a href="#account">Your account</a> says.</p>
 
     <h2>The connection</h2>
     <p>Your phone and the linked screen talk <strong>directly over the local network</strong>: your phone's hotspot or the same Wi‑Fi. To find each other, the phone announces itself on that local network. Everything they exchange is encrypted with the link key, and the phone only accepts the screen you linked. Nothing goes through the internet or anyone's servers. That's why the app asks for network and Wi‑Fi state permissions.</p>
+
+    <h2 id="music">Your music on the screen</h2>
+    <p>If you tap <strong>"Allow music"</strong>, Android gives the app <strong>"notification access"</strong>. With it, LiteDash Connect reads <strong>only what is playing</strong> in your music apps (title, artist, album, app name, cover art, length and whether it is paused) to show it on the linked screen, and passes the buttons you tap on the screen (play, pause, next, previous and seek) to that app. It does not read the text of your notifications or your messages, and it keeps nothing. That data only travels, encrypted, to your screen over your local network, and only while they are connected: it never reaches the internet or our servers. You can remove the permission at any time in Android settings.</p>
 
     <h2>Link notification</h2>
     <p>While a screen is linked, the app keeps the link alive with a <strong>discreet, persistent notification</strong> ("Link with your car"), also after restarting the phone. It's how Android lets the connection continue with the app closed. With no link, the app doesn't run in the background.</p>
 
     <h2>How to delete everything</h2>
-    <p>Tap <strong>Unlink</strong> in the app: the saved link is deleted and the screen is notified. You can also uninstall the app or clear its data in Android settings; nothing remains anywhere else.</p>
+    <p>Tap <strong>Unlink</strong> in the app: the saved link is deleted and the screen is notified. You can also uninstall the app or clear its data in Android settings; the link isn't kept anywhere else. Your account is deleted separately, from the app or at <a href="/en/connect/delete-account/">Delete your account</a>: it's deleted right away and only an anonymous record remains (dates and whether you used Google or email).</p>
 
     <h2>Third parties</h2>
-    <p>The QR code reader is <strong>Google ML Kit</strong> and reads the code on your phone: camera images never leave it. ML Kit does send Google, encrypted, technical data for diagnostics and usage analytics of that reader: the phone's make, model and Android version, the app's name and version, a per-installation identifier that can't tell who you are, and metrics such as how long it took or which error occurred. Google doesn't share it with third parties (<a href="https://developers.google.com/ml-kit/android-data-disclosure">ML Kit data disclosure</a>). Other than that, LiteDash Connect includes no analytics, advertising or tracking SDK and sends no data to any server of ours. If you install it from Google Play, Google may collect store data under its own policy. This page is hosted on Firebase Hosting, which may log technical data about the visit.</p>
+    <p>The QR code reader is <strong>Google ML Kit</strong> and reads the code on your phone: camera images never leave it. ML Kit does send Google, encrypted, technical data for diagnostics and usage analytics of that reader: the phone's make, model and Android version, the app's name and version, a per-installation identifier that can't tell who you are, and metrics such as how long it took or which error occurred. Google doesn't share it with third parties (<a href="https://developers.google.com/ml-kit/android-data-disclosure">ML Kit data disclosure</a>). Your account lives in Google's Firebase, as explained above. Other than that, LiteDash Connect includes no analytics, advertising or tracking SDK and sends no data to any server of ours. If you install it from Google Play, Google may collect store data under its own policy. This page is hosted on Firebase Hosting, which may log technical data about the visit.</p>
 
     <h2>Children</h2>
-    <p>LiteDash Connect is not directed at children under 13 and collects no personal data from anyone.</p>
+    <p>LiteDash Connect is not directed at children under 13 and does not knowingly collect their data.</p>
 
     <h2>Changes</h2>
     <p>If a new version uses any data differently, this policy is updated before it ships.</p>

@@ -63,7 +63,7 @@ class LiteDashApp : Application() {
                 PhoneLink(this) {
                     val car = prefs.carName ?: cars.pkg(prefs.carModel)?.name ?: contextWithLanguage(this).getString(R.string.my_car)
                     ScreenInfo(BuildConfig.VERSION_NAME, car, prefs.carModel ?: "", Build.MODEL)
-                }
+                }.also { wirePhoneMusic(it, music) }
             },
         )
     }

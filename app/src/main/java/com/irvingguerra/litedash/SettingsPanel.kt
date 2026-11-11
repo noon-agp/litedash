@@ -49,17 +49,16 @@ import com.irvingguerra.litedash.core.ui.Typography
 /** Secciones de Ajustes en el orden del menú: cada cosa vive en un solo lugar. */
 enum class SettingsSection(val title: Int) {
     CAR(R.string.your_car), APPEARANCE(R.string.appearance), APPS(R.string.apps_section), WORKSHOP(R.string.workshop),
-    TIRES(R.string.tires), WHEEL(R.string.wheel), PHONE(R.string.module_phone), MODULES(R.string.modules), SYSTEM(R.string.system),
+    TIRES(R.string.tires), WHEEL(R.string.wheel), MODULES(R.string.modules), ACCOUNT(R.string.account), SYSTEM(R.string.system),
 }
 
 /**
- * Las secciones de un módulo apagado no salen en el menú (Taller sin OBD, Llantas sin fuente, Celular);
+ * Las secciones de un módulo apagado no salen en el menú (Taller sin OBD, Llantas sin fuente);
  * la que ya está abierta sí (al prender Llantas se entra a elegir su fuente).
  */
 private fun SettingsSection.shown(d: Dependencies, current: SettingsSection) = this == current || when (this) {
     SettingsSection.WORKSHOP -> d.obdModule
     SettingsSection.TIRES -> d.hasTpmsSource
-    SettingsSection.PHONE -> d.phoneModule
     else -> true
 }
 
@@ -70,7 +69,7 @@ private fun SettingsSection.icon() = when (this) {
     SettingsSection.WHEEL -> Icons.wheel
     SettingsSection.WORKSHOP -> Icons.engine
     SettingsSection.TIRES -> Icons.tire
-    SettingsSection.PHONE -> Icons.phoneCar
+    SettingsSection.ACCOUNT -> Icons.account
     SettingsSection.MODULES -> Icons.settings
     SettingsSection.SYSTEM -> Icons.info
 }
@@ -126,9 +125,8 @@ fun SettingsPanel(
                     // Con el OBD apagado el escáner ni se crea.
                     SettingsSection.WORKSHOP -> if (d.obdModule) Workshop(d, onTires)
                     SettingsSection.TIRES -> TiresSettings(d)
-                    // Con el módulo apagado el enlace ni se crea.
-                    SettingsSection.PHONE -> if (d.phoneModule) PhoneSettings(d.phone)
                     SettingsSection.MODULES -> Modules(d, revision, open = { section = it })
+                    SettingsSection.ACCOUNT -> AccountSettings(d.phone)
                     SettingsSection.SYSTEM -> SystemSettings(d)
                 }
             }

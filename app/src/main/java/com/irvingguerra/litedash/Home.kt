@@ -188,16 +188,11 @@ class Dependencies(
     /** El escáner si ya existe, sin crearlo (una pieza solo quiere saber si está conectado). */
     fun obdIfCreated(): ObdRepository? = if (obdCreated.value) obdLazy.value else null
 
-    /** El enlace con el celular: se crea al prender su módulo (o al abrir LiteDash con él prendido). */
+    /**
+     * El enlace con LiteDash Connect (Ajustes → Cuenta). Siempre disponible, pero sin celular vinculado
+     * no escucha la red ni busca nada: solo trabaja con la sección abierta (el QR) o ya vinculado.
+     */
     val phone: PhoneLink get() = phoneLazy.value
-
-    /** El módulo Celular. Apagado no existe nada suyo; apagarlo suelta la conexión. */
-    var phoneModule: Boolean
-        get() = prefs.phoneModule
-        set(on) {
-            prefs.phoneModule = on
-            if (on) phone.start() else if (phoneLazy.isInitialized()) phone.stop()
-        }
 
     private val tpmsCreated = mutableStateOf(false)
 

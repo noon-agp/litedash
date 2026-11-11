@@ -4,6 +4,28 @@ Todos los cambios que nota quien usa LiteDash. Formato
 [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/), versiones
 [SemVer](https://semver.org/lang/es/).
 
+## [1.4.130] - 2026-11-10
+
+### Agregado
+- **La música de tu celular en la pantalla** (con LiteDash Connect 0.3.0): lo que suena en tu celular (Spotify,
+  YouTube Music…) se ve en el widget Música con su carátula, título y avance, y lo controlas desde la pantalla
+  (play, pausa, siguiente, anterior y adelantar). Llega por el enlace con tu celular, así que funciona aunque tu
+  pantalla no muestre la canción por Bluetooth. Se ve con el método Bluetooth (y con App si no eliges una app).
+
+### Corregido
+- **Widget Reloj**: en un widget angosto, el clima ya no se encima sobre la hora (si no caben los dos, la hora va
+  sola), y en uno de poca altura la hora se achica para que quepan la fecha y el clima sin cortarse.
+- Si la conexión con el celular se cae, la pantalla vuelve a intentar sola cada vez más espaciado (hasta cada
+  minuto) en lugar de rendirse tras un intento.
+
+## [1.4.129] - 2026-11-10
+
+### Cambiado
+- **Ajustes → Cuenta** (nuevo): ahí está el código QR para vincular tu pantalla con la app **LiteDash Connect** de
+  tu celular, donde ahora creas tu cuenta de LiteDash (con Google o con tu correo). Ya vinculado, ves si están
+  conectados y puedes desvincular. Siempre está disponible: sin celular vinculado no usa la red ni corre nada.
+- Ya no hay módulo Celular en Ajustes → Módulos (pasó a Cuenta). Si ya tenías tu celular vinculado, sigue igual.
+
 ## [1.4.128] - 2026-11-10
 
 ### Agregado

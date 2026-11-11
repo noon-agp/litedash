@@ -1,6 +1,8 @@
 package com.irvingguerra.litedash.feature.link
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.Network
@@ -20,6 +22,7 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
 import java.security.SecureRandom
+import java.util.concurrent.Executors
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -29,13 +32,33 @@ class ScreenInfo(val app: String, val car: String, val carId: String, val screen
 /** Lo que se dibuja para vincular: el texto del QR y el código de 4 dígitos de esa llave. */
 class Pairing(val text: String, val code: String)
 
+/** Lo que suena en el celular (mensaje `music` con su `art`, PROTOCOLO_LINK.md §5b). */
+class PhoneSong(
+    val title: String,
+    val artist: String,
+    /** La app que suena en el celular ("Spotify"). */
+    val app: String,
+    val playing: Boolean,
+    val buffering: Boolean,
+    val durationMs: Long,
+    val positionMs: Long,
+    /** Cuándo llegó (reloj de arranque), para avanzar la barra sin preguntar. */
+    val readAt: Long,
+    val speed: Float,
+    val seekable: Boolean,
+    /** El celular tiene carátula (llega aparte); sin ella, la pantalla puede buscarla. */
+    val hasArt: Boolean,
+    val art: Bitmap?,
+)
+
 /**
  * El enlace con el celular (LiteDash Connect), lado pantalla de Link v1 (PROTOCOLO_LINK.md): el
  * celular es el servidor y la pantalla lo busca en la puerta de enlace de la red, en la última
  * dirección que funcionó y por NSD.
  *
- * Sin sondeo: ya vinculada intenta al abrir LiteDash ([start]), al cambiar la red y cuando NSD
- * encuentra al celular; si la conexión se cae, un solo reintento. Con su panel abierto ([watch])
+ * Ya vinculada intenta al abrir LiteDash ([start]), al cambiar la red y cuando NSD encuentra al
+ * celular; si la conexión se cae, reintenta cada vez más espaciado (5 s… hasta 1 min): Android puede
+ * cerrar y volver a abrir LiteDash Connect sin que cambie la red. Con su panel abierto ([watch])
  * intenta cada 2 s. Apagado ([stop]) no deja hilos, receptores ni sockets.
  *
  * El estado se maneja en el hilo principal; la red, en un hilo por intento.
@@ -45,6 +68,7 @@ class PhoneLink(context: Context, private val screen: () -> ScreenInfo) {
     private val store = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val main = Handler(Looper.getMainLooper())
     private val random = SecureRandom()
+    private val commands = Executors.newSingleThreadExecutor { Thread(it, "phone-link-cmd") }
 
     /** Hay un celular vinculado (su llave guardada). */
     var paired by mutableStateOf(store.contains(KEY))
@@ -59,6 +83,23 @@ class PhoneLink(context: Context, private val screen: () -> ScreenInfo) {
         private set
     var phoneApp by mutableStateOf(store.getString(PHONE_APP, null))
         private set
+
+    /** El celular dijo que no puede leer su música (falta "Permitir la música" en LiteDash Connect). */
+    var musicBlocked by mutableStateOf(false)
+        private set
+
+    /** Lo que suena en el celular; null = nada, o sin conexión. Avisa a [onMusic] en el hilo principal. */
+    var song: PhoneSong? = null
+        private set
+    var onMusic: ((PhoneSong?) -> Unit)? = null
+
+    /** Play, pausa, siguiente, anterior o salto ([ms]) a la música del celular. Falso si no se puede. */
+    fun command(action: String, ms: Long = 0): Boolean {
+        val open = session?.takeIf { it.music } ?: return false
+        // En un solo hilo: play y pausa seguidos llegan en el orden en que se tocaron.
+        commands.execute { runCatching { open.send(JSONObject().put("t", "cmd").put("do", action).put("ms", ms)) } }
+        return true
+    }
 
     /** El QR para vincular; solo con el panel abierto y sin celular vinculado. */
     var pairing by mutableStateOf<Pairing?>(null)
@@ -84,25 +125,14 @@ class PhoneLink(context: Context, private val screen: () -> ScreenInfo) {
 
     private val active get() = running && (paired || watching)
 
-    /** El módulo se prendió o LiteDash volvió al frente: si hay celular vinculado, lo busca. */
+    /** LiteDash volvió al frente: si hay celular vinculado, lo busca. */
     fun start() {
         running = true
         sync()
         connect()
     }
 
-    /** El módulo se apagó: suelta todo. */
-    fun stop() {
-        running = false
-        watching = false
-        main.removeCallbacksAndMessages(null)
-        drop()
-        offered = null
-        pairing = null
-        sync()
-    }
-
-    /** El panel del módulo se abrió o se cerró: abierto, intenta cada 2 s y mantiene el QR al día. */
+    /** Ajustes → Cuenta se abrió o se cerró: abierta, intenta cada 2 s y mantiene el QR al día. */
     fun watch(on: Boolean) {
         watching = on && running
         main.removeCallbacks(tick)
@@ -116,9 +146,10 @@ class PhoneLink(context: Context, private val screen: () -> ScreenInfo) {
     }
 
     /** Para "Enviar un reporte". */
-    fun describe(): String = "Celular: módulo prendido, vinculado=${yes(paired)}, conectado=${yes(connected)}, " +
+    fun describe(): String = "Celular: vinculado=${yes(paired)}, conectado=${yes(connected)}, " +
         "puerta de enlace=${lastGateways.ifEmpty { "—" }}, última dirección=${store.getString(LAST_ADDRESS, null) ?: "—"}, " +
-        "NSD=${if (discovery != null) "buscando" else "no"}${announced?.let { " ($it)" } ?: ""}, error=${lastError ?: "—"}"
+        "NSD=${if (discovery != null) "buscando" else "no"}${announced?.let { " ($it)" } ?: ""}, error=${lastError ?: "—"}, " +
+        "música=${when { session?.music != true -> "no" ; musicBlocked -> "sin permiso"; song == null -> "nada"; song?.playing == true -> "suena"; else -> "en pausa" }}"
 
     private fun yes(value: Boolean) = if (value) "sí" else "no"
 
@@ -132,6 +163,8 @@ class PhoneLink(context: Context, private val screen: () -> ScreenInfo) {
     }
 
     private val retry = Runnable { connect() }
+    /** Reintentos seguidos desde que se cayó la conexión (0 = conectado o nunca se cayó). */
+    private var retries = 0
 
     /** Con el panel abierto y sin celular: una llave nueva si no hay o si la del QR ya venció. */
     private fun refreshPairing() {
@@ -236,6 +269,8 @@ class PhoneLink(context: Context, private val screen: () -> ScreenInfo) {
     private fun drop(bye: Boolean = false) {
         val current = attempt ?: return
         val open = session
+        // El hilo del intento ya no avisará al cerrar (se le soltó): la música del celular se quita aquí.
+        played(current, null, blocked = false)
         attempt = null
         session = null
         connected = false
@@ -250,6 +285,8 @@ class PhoneLink(context: Context, private val screen: () -> ScreenInfo) {
     private fun forget() {
         store.edit().remove(KEY).remove(PHONE_NAME).remove(PHONE_APP).apply()
         paired = false
+        retries = 0
+        main.removeCallbacks(retry)
         phoneName = null
         phoneApp = null
         offered = null
@@ -272,19 +309,30 @@ class PhoneLink(context: Context, private val screen: () -> ScreenInfo) {
         }
         session = open
         connected = true
+        retries = 0
         lastError = null
         sync()
     }
 
-    private fun heard(from: Attempt, name: String, version: String) {
+    private fun heard(from: Attempt, name: String, version: String, music: Boolean) {
         if (attempt !== from) return
+        session?.music = music
         phoneName = name
         phoneApp = version
         store.edit().putString(PHONE_NAME, name).putString(PHONE_APP, version).apply()
     }
 
+    /** Llegó la música del celular (ya en el hilo principal). */
+    private fun played(from: Attempt, next: PhoneSong?, blocked: Boolean) {
+        if (attempt !== from) return
+        musicBlocked = blocked
+        song = next
+        onMusic?.invoke(next)
+    }
+
     private fun closed(from: Attempt, error: String?, bye: Boolean) {
         if (attempt !== from) return
+        played(from, null, blocked = false)
         val wasConnected = connected
         attempt = null
         session = null
@@ -293,14 +341,21 @@ class PhoneLink(context: Context, private val screen: () -> ScreenInfo) {
         if (bye) return forget()
         sync()
         if (!active) return
-        // Se cayó: un solo reintento. No conectó: queda esperando a la red o a NSD.
-        if (wasConnected) main.postDelayed(retry, RETRY_MS) else discover(true)
+        // Se cayó (o sigue sin volver tras caerse): otro intento, cada vez más espaciado. Nunca conectó en
+        // esta red: queda esperando a la red o a NSD.
+        if (wasConnected || retries > 0) {
+            main.postDelayed(retry, RETRY_MS.getOrElse(retries) { RETRY_MS.last() })
+            retries++
+        }
+        if (!wasConnected) discover(true)
     }
 
     /** Una conexión ya saludada: escribe de un mensaje a la vez (el contador del cifrado va en orden). */
     private class Session(private val socket: Socket, private val channel: SecureChannel) {
         private val output = socket.getOutputStream()
         @Volatile var lastSent = SystemClock.elapsedRealtime()
+        /** El celular declaró la música en su `info`. */
+        @Volatile var music = false
 
         fun send(message: JSONObject) = synchronized(this) {
             output.write((channel.seal(message.toString()) + "\n").toByteArray(Charsets.US_ASCII))
@@ -324,6 +379,7 @@ class PhoneLink(context: Context, private val screen: () -> ScreenInfo) {
     ) : Runnable {
         @Volatile var cancelled = false
         @Volatile private var socket: Socket? = null
+        private val music = MusicReader()
 
         fun close() {
             runCatching { socket?.close() }
@@ -348,7 +404,7 @@ class PhoneLink(context: Context, private val screen: () -> ScreenInfo) {
                     val ready = Session(open, channel)
                     ready.send(
                         JSONObject().put("t", "info").put("role", "screen").put("app", info.app).put("car", info.car)
-                            .put("carId", info.carId).put("screen", info.screen).put("caps", JSONArray()),
+                            .put("carId", info.carId).put("screen", info.screen).put("caps", JSONArray().put(CAP_MUSIC)),
                     )
                     served = true
                     main.post { opened(this, ready, address) }
@@ -426,13 +482,76 @@ class PhoneLink(context: Context, private val screen: () -> ScreenInfo) {
                     "info" -> {
                         val name = message.optString("name")
                         val version = message.optString("app")
-                        main.post { heard(this, name, version) }
+                        val caps = message.optJSONArray("caps")
+                        val music = caps != null && (0 until caps.length()).any { caps.optString(it) == CAP_MUSIC }
+                        // Ya se puede mandar `cmd` (antes de que el hilo principal se entere).
+                        ready.music = music
+                        main.post { heard(this, name, version, music) }
                     }
+                    "music" -> {
+                        val next = music.heard(message)
+                        val blocked = !message.optBoolean("access", true)
+                        main.post { played(this, next, blocked) }
+                    }
+                    "art" -> music.art(message)?.let { next -> main.post { played(this, next, blocked = false) } }
                     "ping" -> ready.send(JSONObject().put("t", "pong"))
                     "bye" -> return true
                     // "pong" y lo que no se conoce: nada (compatibilidad hacia adelante).
                 }
             }
+        }
+    }
+
+    /**
+     * Arma la canción con los mensajes `music` y `art` (en el hilo de la conexión): la carátula se guarda
+     * por canción (`track`) y se pega a cada `music` de esa misma canción.
+     */
+    private class MusicReader {
+        private var last: PhoneSong? = null
+        private var track: String? = null
+        private var artTrack: String? = null
+        private var art: Bitmap? = null
+
+        /** null = no suena nada (o el celular no tiene permiso). */
+        fun heard(m: JSONObject): PhoneSong? {
+            val title = m.optString("title")
+            if (title.isEmpty()) {
+                last = null
+                track = null
+                return null
+            }
+            track = m.optString("track")
+            val hasArt = m.optBoolean("art")
+            return PhoneSong(
+                title = title,
+                artist = m.optString("artist"),
+                app = m.optString("app"),
+                playing = m.optBoolean("playing"),
+                buffering = m.optBoolean("buffering"),
+                durationMs = m.optLong("duration").coerceAtLeast(0),
+                positionMs = m.optLong("position").coerceAtLeast(0),
+                readAt = SystemClock.elapsedRealtime(),
+                speed = m.optDouble("speed", 1.0).toFloat().takeIf { it > 0 } ?: 1f,
+                seekable = m.optBoolean("seek"),
+                hasArt = hasArt,
+                art = art.takeIf { hasArt && artTrack == track },
+            ).also { last = it }
+        }
+
+        /**
+         * La carátula de una canción; regresa la canción actual con ella si es la suya. Vacía o dañada (el
+         * celular no pudo comprimirla): la canción queda sin carátula y la pantalla la busca por su cuenta.
+         */
+        fun art(m: JSONObject): PhoneSong? {
+            val bytes = runCatching { Base64.decode(m.optString("jpg")) }.getOrNull()
+            val decoded = bytes?.takeIf { it.isNotEmpty() }?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+            artTrack = m.optString("track")
+            art = decoded
+            val current = last?.takeIf { artTrack == track && it.hasArt } ?: return null
+            return PhoneSong(
+                current.title, current.artist, current.app, current.playing, current.buffering, current.durationMs,
+                current.positionMs, current.readAt, current.speed, current.seekable, hasArt = decoded != null, decoded,
+            ).also { last = it }
         }
     }
 
@@ -445,11 +564,12 @@ class PhoneLink(context: Context, private val screen: () -> ScreenInfo) {
         const val LAST_ADDRESS = "last_address"
         const val PHONE_NAME = "phone_name"
         const val PHONE_APP = "phone_app"
+        const val CAP_MUSIC = "music"
 
         /** Lo que vive la llave de un QR sin vincular. */
         const val OFFER_MS = 5 * 60_000L
         const val WATCH_RETRY_MS = 2_000L
-        const val RETRY_MS = 5_000L
+        val RETRY_MS = longArrayOf(5_000, 10_000, 20_000, 40_000, 60_000)
         const val CONNECT_MS = 1_500
         const val HELLO_MS = 5_000
         const val PING_MS = 20_000L

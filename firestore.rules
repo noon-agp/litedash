@@ -53,6 +53,33 @@ service cloud.firestore {
         && request.resource.data.alta is string && request.resource.data.alta.size() == 10
         && request.resource.data.visto == request.time;
     }
+    // Cuentas de LiteDash Connect: cada quien escribe solo la suya, nadie lee desde las apps.
+    // Al eliminar la cuenta el documento se reemplaza por {provider, since, deleted} (sin nombre)
+    // y ya no se puede tocar: la sesión de Auth se borra justo después.
+    match /accounts/{uid} {
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && !(resource != null && 'deleted' in resource.data)
+        && request.resource.data.provider in ['google', 'password']
+        && request.resource.data.since is string && request.resource.data.since.size() == 10
+        && ((request.resource.data.keys().hasOnly(['name', 'provider', 'since', 'app', 'language', 'seen'])
+              && request.resource.data.name is string && request.resource.data.name.size() <= 100
+              && request.resource.data.app is string && request.resource.data.app.size() <= 16
+              && request.resource.data.language is string && request.resource.data.language.size() <= 8
+              && request.resource.data.seen == request.time)
+          || (request.resource.data.keys().hasOnly(['provider', 'since', 'deleted'])
+              && request.resource.data.deleted == request.time));
+      // La pantalla vinculada a la cuenta (id de 16 hex del protocolo Link): modelo, versión y auto del catálogo.
+      match /screens/{id} {
+        allow create, update: if request.auth != null && request.auth.uid == uid
+          && id.matches('^[0-9a-f]{16}$')
+          && request.resource.data.keys().hasOnly(['model', 'launcher', 'car', 'since', 'seen'])
+          && request.resource.data.model is string && request.resource.data.model.size() <= 48
+          && request.resource.data.launcher is string && request.resource.data.launcher.size() <= 16
+          && request.resource.data.car is string && request.resource.data.car.size() <= 64
+          && request.resource.data.since is string && request.resource.data.since.size() == 10
+          && request.resource.data.seen == request.time;
+      }
+    }
     match /{document=**} {
       allow read, write: if false;
     }

@@ -94,7 +94,7 @@ private fun ScreenInfo(d: Dependencies) {
         for (line in lines) Label(line, Typography.body, maxLines = 2)
     }
     ProCard(d.pro)
-    SendReport(d.music, d.pro, d.dashboard, d::obdIfCreated) { if (d.phoneModule) d.phone.describe() else null }
+    SendReport(d.music, d.pro, d.dashboard, d::obdIfCreated) { d.phone.describe() }
 }
 
 /** LiteDash Pro en prueba: activarlo con un código o, si ya está, quitarlo de esta pantalla (solo lo local). */
@@ -187,7 +187,6 @@ internal fun Modules(d: Dependencies, revision: Int, open: (SettingsSection) -> 
             if (!on) tpms.source = null
             else tpms.lastSource?.let { tpms.source = it } ?: open(SettingsSection.TIRES)
         }) { open(SettingsSection.TIRES) }
-        ModuleRow(Icons.phoneCar, stringResource(R.string.module_phone), d.phoneModule, { d.phoneModule = it }) { open(SettingsSection.PHONE) }
         ModuleRow(Icons.car, stringResource(R.string.module_cameras), on = false, onChange = null, soon = true)
     }
 }

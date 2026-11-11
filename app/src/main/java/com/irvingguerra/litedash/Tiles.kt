@@ -187,21 +187,37 @@ fun ClockTile(driverName: String? = null, weather: WeatherRepository? = null, da
     val c = LocalColors.current
     val clock = rememberClock()
     val hello = greeting(driverName)
+    // La fecha y el saludo son opciones del widget (sin los dos, solo la hora).
+    val line = listOfNotNull(hello, clock.date.takeIf { date }).joinToString(" · ")
+    val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(Modifier.fillMaxSize().padding(8.dp), contentAlignment = Alignment.CenterStart) {
         // El reloj crece con la pieza: en 1 fila es discreto, en 2 o más es protagonista; lo limita lo que
-        // quepa a lo ancho (con la a.m./p.m.), para que nunca se corte.
+        // quepa a lo ancho (con la a.m./p.m.) y a lo alto (con la fecha y el clima), para que nunca se corte.
         val tall = maxHeight > 120.dp
         // Solo si ya hay clima que mostrar (con permiso y ya bajado): si no, ni esquina ni píldora vacía.
-        val withWeather = weather != null && weather.active && weather.weather != null
-        // En una fila, la hora deja libre la esquina del clima.
-        val timeWidth = if (withWeather && !tall) maxWidth - 80.dp else maxWidth
-        val size = fitFont(clock.time, timeWidth, maxHeight, if (tall) 0.42f else 0.5f, min = 28f, max = 104f, extraChars = if (clock.marker != null) 1.6f else 0.3f)
-        // En una fila el clima va en la esquina; con lugar, en una píldora bajo la fecha.
+        val hasWeather = weather != null && weather.active && weather.weather != null
+        val extra = if (clock.marker != null) 1.6f else 0.3f
+        val grow = fontScale.coerceAtLeast(1f)
+        val dateHeight = if (line.isNotEmpty()) CLOCK_DATE_HEIGHT * grow else 0f
+        // Lo que queda a lo alto para la hora, con o sin la píldora del clima abajo.
+        fun room(pill: Boolean) = maxHeight.value - dateHeight - if (pill) CLOCK_PILL_HEIGHT * grow else 0f
+        // En una fila el clima va en la esquina y la hora le deja libre su ancho; con lugar, en una píldora bajo
+        // la fecha. Si la hora con su letra más chica no cabe junto a él (o encima de él), va sola: antes se encimaban.
+        val corner = CLOCK_WEATHER_WIDTH * grow
+        // Ancho (dp) de la hora a cierta letra (dp), con la a.m./p.m. como la dibuja BigTime: su letra no baja de 14.
+        fun width(letter: Float) = clock.time.length * 0.6f * letter +
+            (clock.marker?.let { it.length * 0.6f * maxOf(letter * 0.32f, 14f * fontScale) + 6f } ?: 0f)
+        val withWeather = hasWeather &&
+            if (tall) room(pill = true) >= CLOCK_MIN_FONT * CLOCK_LINE else maxWidth.value - corner.value >= width(CLOCK_MIN_FONT)
+        val timeWidth = if (withWeather && !tall) maxWidth - corner else maxWidth
+        val fits = fitFont(clock.time, timeWidth, maxHeight, if (tall) 0.42f else 0.5f, min = CLOCK_MIN_FONT, max = 104f, extraChars = extra)
+        // Que la hora, la fecha y la píldora quepan juntas a lo alto (sin bajar de la letra más chica)…
+        var size = minOf(fits, room(withWeather && tall) / CLOCK_LINE / fontScale).coerceAtLeast(CLOCK_MIN_FONT / fontScale)
+        // …y a lo ancho con la a.m./p.m. a su tamaño real (con letra chica pesa más de lo que supone fitFont).
+        while (size * fontScale > CLOCK_MIN_FONT && width(size * fontScale) > timeWidth.value) size -= 1f
         if (withWeather && !tall) Box(Modifier.align(Alignment.TopEnd)) { WeatherChip(weather) }
         Column {
             BigTime(clock, Typography.clock.copy(fontSize = size.sp))
-            // La fecha y el saludo son opciones del widget (sin los dos, solo la hora).
-            val line = listOfNotNull(hello, clock.date.takeIf { date }).joinToString(" · ")
             if (line.isNotEmpty()) Label(line, Typography.body, c.textMuted, maxLines = 1)
             if (withWeather && tall) Box(
                 Modifier.padding(top = 10.dp).clip(RoundedCornerShape(50)).background(c.surfaceHigh).padding(horizontal = 12.dp, vertical = 4.dp),
@@ -209,6 +225,14 @@ fun ClockTile(driverName: String? = null, weather: WeatherRepository? = null, da
         }
     }
 }
+
+/** Lo que ocupa el clima en la esquina del reloj (ícono y temperatura) y la letra más chica de la hora. */
+private val CLOCK_WEATHER_WIDTH = 80.dp
+private const val CLOCK_MIN_FONT = 28f
+/** Alto de la línea de la fecha y de la píldora del clima con su margen (dp), y alto de renglón de la hora. */
+private const val CLOCK_DATE_HEIGHT = 22f
+private const val CLOCK_PILL_HEIGHT = 44f
+private const val CLOCK_LINE = 1.2f
 
 /**
  * Tarjeta de acceso grande (Teléfono, Android Auto y los widgets sin permiso o sin datos): ícono blanco en

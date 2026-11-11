@@ -1,4 +1,4 @@
-// Ajustes → Celular: el QR para vincular LiteDash Connect y, ya vinculado, cómo va el enlace.
+// Ajustes → Cuenta: el QR para vincular LiteDash Connect (donde vive la cuenta) y, ya vinculado, cómo va el enlace.
 package com.irvingguerra.litedash
 
 import androidx.compose.foundation.Canvas
@@ -47,17 +47,17 @@ private val SIDE_BY_SIDE = 660.dp
 private const val QUIET_ZONE = 4
 
 /**
- * El panel del módulo Celular. Mientras está a la vista el enlace intenta conectarse cada 2 s
+ * La sección Cuenta. Mientras está a la vista el enlace intenta conectarse cada 2 s
  * y mantiene vigente el QR; al salir (o irse LiteDash al fondo) deja de intentar.
  */
 @Composable
-internal fun PhoneSettings(link: PhoneLink) {
+internal fun AccountSettings(link: PhoneLink) {
     LifecycleResumeEffect(link) {
         link.watch(true)
         onPauseOrDispose { link.watch(false) }
     }
     val pairing = link.pairing
-    SettingsCard {
+    SettingsCard(help = stringResource(R.string.account_help)) {
         if (link.paired) Linked(link) else if (pairing != null) PairingCode(pairing)
     }
 }
@@ -128,10 +128,12 @@ private fun Linked(link: PhoneLink) {
         Label(stringResource(if (link.connected) R.string.phone_connected else R.string.phone_offline), Typography.title, maxLines = 1)
     }
     Column {
-        Fact(stringResource(R.string.module_phone), link.phoneName)
+        Fact(stringResource(R.string.phone_name), link.phoneName)
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
         Fact(stringResource(R.string.phone_app_version), link.phoneApp)
     }
+    // La música del celular necesita un permiso que solo se da en el celular.
+    if (link.connected && link.musicBlocked) Label(stringResource(R.string.phone_music_blocked), Typography.body, c.textMuted)
     Row { Button(stringResource(R.string.phone_unlink), link::unlink) }
 }
 

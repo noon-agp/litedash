@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacidad — LiteDash Connect</title>
+  <meta name="theme-color" content="#101317">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="alternate" hreflang="en" href="/en/connect/privacy/">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="barra">
+    <div class="contenedor">
+      <a class="logo" href="/" aria-label="LiteDash"><img src="/img/litedash-horizontal-sobre-oscuro.svg" alt="LiteDash" width="132" height="30"></a>
+      <nav><a class="idioma" href="/en/connect/privacy/" hreflang="en" lang="en">EN</a></nav>
+    </div>
+  </header>
+  <main class="contenedor texto">
+    <h1>Política de privacidad de LiteDash Connect</h1>
+    <p>Última actualización: 10 de noviembre de 2026 · Aplica a LiteDash Connect para Android, la app del celular que acompaña a LiteDash. La de la pantalla del auto está en <a href="/privacidad/">la política de LiteDash</a>.</p>
+
+    <h2>En corto</h2>
+    <p><strong>LiteDash Connect guarda lo mínimo y no vende ni comparte tus datos.</strong> No tiene anuncios ni analíticas propias. Para usarla entras con tu cuenta (Google o correo); de ella guardamos solo lo que se explica abajo. Lo demás es hablar con la pantalla de tu auto que tú vinculaste, por tu red local y con un canal cifrado. Fuera de tu cuenta, lo único que sale a internet son datos técnicos anónimos que el lector de códigos QR de Google (ML Kit) le manda a Google sobre su funcionamiento; también lo explicamos abajo.</p>
+
+    <h2 id="cuenta">Tu cuenta</h2>
+    <p>Entras con <strong>Google</strong> o con <strong>correo y contraseña</strong>. Guardamos tu nombre, tu correo, cómo entraste (Google o correo), la versión de la app, su idioma y las fechas de alta y de último uso; si entras con Google, también la foto de tu perfil. La contraseña la guarda Firebase cifrada: nosotros no la vemos. Con tu cuenta también se guarda la pantalla que vinculas, sin datos tuyos: su identificador, su modelo, su versión de LiteDash y el auto del catálogo que muestra.</p>
+    <p>Sirve para registrar tu cuenta y, más adelante, para respaldar tu LiteDash. Se guarda en <strong>Firebase de Google</strong> (Authentication y Firestore). No se comparte, no se vende y no se usa para anuncios. Puedes eliminarla cuando quieras desde la app (Tu cuenta → Privacidad y datos → Eliminar mi cuenta) o en <a href="/connect/delete-account/">Eliminar tu cuenta</a>.</p>
+
+    <h2>Cámara</h2>
+    <p>La cámara se usa <strong>solo para leer el código QR</strong> que muestra la pantalla de tu auto (Ajustes → Cuenta). El permiso se pide hasta que tocas "Vincular mi pantalla". La imagen se lee en tu celular en ese momento: no se toman fotos, no se guardan imágenes y no se envían a ningún lado.</p>
+
+    <h2>El vínculo con tu pantalla</h2>
+    <p>Al vincular, la app guarda <strong>en tu celular</strong>: el identificador de la pantalla, la llave del enlace, el nombre de tu auto y el modelo de la pantalla (y la fecha en que vinculaste). La llave va cifrada con el almacén de llaves de Android. La llave nunca sale de tu celular; de la pantalla, con tu cuenta solo se guarda lo que dice <a href="#cuenta">Tu cuenta</a>.</p>
+
+    <h2>La conexión</h2>
+    <p>Tu celular y la pantalla vinculada se hablan <strong>directo por la red local</strong>: el hotspot de tu celular o el mismo Wi‑Fi. Para encontrarse, el celular se anuncia en esa red local. Todo lo que se mandan va cifrado con la llave del vínculo, y el celular solo acepta a la pantalla que vinculaste. No pasa por internet ni por servidores de nadie. Por eso la app pide los permisos de red y de estado del Wi‑Fi.</p>
+
+    <h2 id="musica">Tu música en la pantalla</h2>
+    <p>Si tocas <strong>"Permitir la música"</strong>, Android le da a la app el <strong>"acceso a notificaciones"</strong>. Con él, LiteDash Connect lee <strong>solo lo que suena</strong> en tus apps de música (título, artista, álbum, nombre de la app, carátula, duración y si está en pausa) para mostrarlo en la pantalla vinculada, y le pasa a esa app los botones que tocas en la pantalla (play, pausa, siguiente, anterior y adelantar). No lee el texto de tus notificaciones ni tus mensajes, y no guarda nada. Esos datos solo viajan, cifrados, a tu pantalla por tu red local, y solo mientras están conectadas: nunca llegan a internet ni a servidores nuestros. Puedes quitar el permiso cuando quieras en los ajustes de Android.</p>
+
+    <h2>Notificación del enlace</h2>
+    <p>Mientras hay una pantalla vinculada, la app mantiene el enlace con una <strong>notificación permanente y discreta</strong> ("Enlace con tu auto"), también después de reiniciar el celular. Es la forma que tiene Android de dejar que la conexión siga con la app cerrada. Sin vínculo, la app no corre en segundo plano.</p>
+
+    <h2>Cómo borrar todo</h2>
+    <p>Toca <strong>Desvincular</strong> en la app: se borra el vínculo guardado y se avisa a la pantalla. También puedes desinstalar la app o borrar sus datos en los ajustes de Android; el vínculo no queda en ningún otro lado. Tu cuenta se elimina aparte, desde la app o en <a href="/connect/delete-account/">Eliminar tu cuenta</a>: se borra al momento y solo queda un registro anónimo (fechas y si entraste con Google o correo).</p>
+
+    <h2>Terceros</h2>
+    <p>El lector de códigos QR es <strong>ML Kit de Google</strong> y lee el código dentro de tu celular: las imágenes de la cámara no salen de él. ML Kit sí manda a Google, cifrados, datos técnicos para diagnóstico y estadísticas de uso de ese lector: marca, modelo y versión de Android del celular, nombre y versión de la app, un identificador de instalación que no sirve para saber quién eres, y métricas como cuánto tardó o qué error dio. Google no los comparte con terceros (<a href="https://developers.google.com/ml-kit/android-data-disclosure">aviso de datos de ML Kit</a>). Tu cuenta vive en Firebase de Google, como se explica arriba. Fuera de eso, LiteDash Connect no incluye SDK de analítica, publicidad ni rastreo, y no manda datos a ningún servidor nuestro. Si la instalas desde Google Play, Google puede recopilar datos de la tienda según su propia política. Esta página está en Firebase Hosting, que puede registrar datos técnicos de la visita.</p>
+
+    <h2>Niños</h2>
+    <p>LiteDash Connect no está dirigida a menores de 13 años y no recopila a sabiendas datos de ellos.</p>
+
+    <h2>Cambios</h2>
+    <p>Si una versión nueva usa algún dato de otra forma, esta política se actualiza antes de que salga.</p>
+
+    <h2>Contacto</h2>
+    <p>Dudas o reportes: <a href="https://github.com/IrvingGuerra/litedash/issues">github.com/IrvingGuerra/litedash/issues</a>.</p>
+  </main>
+  <footer><div class="contenedor"><span>© 2026 LiteDash</span><nav><a href="/">Inicio</a><a href="https://ko-fi.com/irvingguerradev" target="_blank" rel="noopener">Ko-fi</a></nav></div></footer>
+</body>
+</html>
