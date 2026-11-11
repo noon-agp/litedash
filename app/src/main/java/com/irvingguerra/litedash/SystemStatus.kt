@@ -25,6 +25,13 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.irvingguerra.litedash.core.ui.Radius
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.runtime.mutableFloatStateOf
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sin
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -88,10 +95,12 @@ private fun Context.listen(receiver: BroadcastReceiver, action: String) =
     ContextCompat.registerReceiver(this, receiver, IntentFilter(action), ContextCompat.RECEIVER_NOT_EXPORTED)
 
 /**
- * Volumen de la música en la barra como una rueda táctil (dial): se desliza el dedo en círculo sobre ella;
- * a la derecha (en el sentido del reloj) sube y a la izquierda baja. Cada "clic" de la rueda mueve el volumen
- * [VOLUME_STEP] puntos y vibra un poco. Muestra el nivel con un arco y con el número al centro.
- * Con el volumen del chip de la pantalla (fijo para Android) manda las teclas de volumen, como el botón físico.
+ * Volumen de la música en la barra como una rueda táctil, igual a la del aire acondicionado de un auto: se
+ * desliza el dedo sobre ella. En la barra lateral va en vertical (arriba sube, abajo baja) y en la de abajo en
+ * horizontal (a la derecha sube, a la izquierda baja). Una deslizada completa a lo largo de la rueda mueve
+ * [VOLUME_POINTS_PER_SWIPE] puntos, y dentro de ella el volumen cambia punto por punto según lo que se
+ * recorra (una deslizada corta mueve pocos puntos). Con el volumen del chip de la pantalla (fijo para
+ * Android) manda las teclas de volumen, como el botón físico.
  */
 @Composable
 fun Volume(buttonSize: Dp, vertical: Boolean = false) {
@@ -101,6 +110,8 @@ fun Volume(buttonSize: Dp, vertical: Boolean = false) {
     val audio = remember { context.getSystemService(AudioManager::class.java) }
     val max = remember { audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
     var level by remember { mutableIntStateOf(audio.getStreamVolume(AudioManager.STREAM_MUSIC)) }
+    // Cuánto ha girado la rueda (en radianes): solo mueve las rayas, para que se vea rodar.
+    var roll by remember { mutableFloatStateOf(0f) }
     LifecycleStartEffect(audio) {
         level = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
         val receiver = object : BroadcastReceiver() {
@@ -111,68 +122,113 @@ fun Volume(buttonSize: Dp, vertical: Boolean = false) {
         context.listen(receiver, VOLUME_CHANGED)
         onStopOrDispose { context.unregisterReceiver(receiver) }
     }
-    // Un clic de la rueda: sube (+1) o baja (-1) [VOLUME_STEP] puntos.
-    fun stepBy(direction: Int) {
+    // Un punto de volumen hacia arriba (+1) o hacia abajo (-1). Falso si ya está en el tope.
+    fun stepBy(direction: Int): Boolean {
         val before = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-        val target = (before + direction * VOLUME_STEP).coerceIn(0, max)
-        if (!audio.isVolumeFixed && target != before) runCatching { audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
+        val target = (before + direction).coerceIn(0, max)
+        if (target == before) return false
+        if (!audio.isVolumeFixed) runCatching { audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
         level = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-        // Si Android no lo dejó cambiar (la pantalla maneja su propio chip), las teclas de volumen.
-        if (audio.isVolumeFixed || (level == before && target != before)) {
-            repeat(VOLUME_STEP) { volumeKey(if (direction > 0) KeyEvent.KEYCODE_VOLUME_UP else KeyEvent.KEYCODE_VOLUME_DOWN) }
-        }
+        // Si Android no lo dejó cambiar (la pantalla maneja su propio chip), la tecla de volumen.
+        if (audio.isVolumeFixed || level == before) volumeKey(if (direction > 0) KeyEvent.KEYCODE_VOLUME_UP else KeyEvent.KEYCODE_VOLUME_DOWN)
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        return true
     }
     val fixed = audio.isVolumeFixed
-    val dial = if (vertical) buttonSize * 1.15f else buttonSize
-    Box(
-        Modifier
-            .size(dial)
-            .clip(CircleShape)
-            .background(c.surfaceHigh)
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    val down = awaitFirstDown()
-                    val cx = size.width / 2f
-                    val cy = size.height / 2f
-                    var last = atan2(down.position.y - cy, down.position.x - cx)
-                    var turned = 0f
-                    while (true) {
-                        val move = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
-                        if (!move.pressed) break
-                        move.consume()
-                        val now = atan2(move.position.y - cy, move.position.x - cx)
-                        var delta = now - last
-                        // Cruzar de +180° a -180° no es un giro enorme.
-                        if (delta > PI.toFloat()) delta -= 2f * PI.toFloat() else if (delta < -PI.toFloat()) delta += 2f * PI.toFloat()
-                        last = now
-                        turned += delta
-                        while (turned >= VOLUME_CLICK_RAD) { stepBy(1); turned -= VOLUME_CLICK_RAD }
-                        while (turned <= -VOLUME_CLICK_RAD) { stepBy(-1); turned += VOLUME_CLICK_RAD }
-                    }
+    val wheelWidth = if (vertical) buttonSize * 1.2f else buttonSize * 2.4f
+    val wheelHeight = if (vertical) buttonSize * 2.3f else buttonSize * 0.8f
+    val shape = RoundedCornerShape(14.dp)
+    val wheel = @Composable {
+        Box(
+            Modifier.size(wheelWidth, wheelHeight).clip(shape).background(Color(0xFF1A1D22)).border(1.dp, c.line, shape).padding(4.dp),
+        ) {
+            Canvas(
+                Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(10.dp))
+                    .pointerInput(vertical) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown()
+                            val length = (if (vertical) size.height else size.width).toFloat().coerceAtLeast(1f)
+                            val radius = length / 2f
+                            val slop = 8.dp.toPx()
+                            val start = if (vertical) down.position.y else down.position.x
+                            var last = start
+                            var decided = false
+                            var ignore = false
+                            var owed = 0f
+                            while (true) {
+                                val move = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                                if (!move.pressed) break
+                                val now = if (vertical) move.position.y else move.position.x
+                                if (!decided) {
+                                    if (abs(now - start) < slop) continue
+                                    decided = true
+                                    // Si se dejó presionada antes de mover (acomodar la barra), no es del volumen.
+                                    ignore = move.uptimeMillis - down.uptimeMillis > 400L
+                                    last = now
+                                    continue
+                                }
+                                if (ignore) continue
+                                // Hacia arriba (vertical) o hacia la derecha (horizontal) sube el volumen.
+                                val delta = if (vertical) last - now else now - last
+                                last = now
+                                roll += delta / radius
+                                owed += delta / length * VOLUME_POINTS_PER_SWIPE
+                                while (owed >= 1f) owed = if (stepBy(1)) owed - 1f else 0f
+                                while (owed <= -1f) owed = if (stepBy(-1)) owed + 1f else 0f
+                            }
+                        }
+                    },
+            ) {
+                val len = if (vertical) size.height else size.width
+                val thick = if (vertical) size.width else size.height
+                val r = len / 2f - 3.dp.toPx()
+                val mid = len / 2f
+                drawRect(Color(0xFF22242A))
+                // Las rayas de la rueda: más juntas hacia los bordes, como un cilindro visto de frente.
+                val pitch = 8.5f * PI.toFloat() / 180f
+                val base = roll % pitch
+                for (k in -14..14) {
+                    val th = k * pitch + base
+                    if (abs(th) >= 1.47f) continue
+                    val b = cos(th)
+                    val pos = if (vertical) mid - r * sin(th) else mid + r * sin(th)
+                    val t = (5.2.dp.toPx() * b).coerceAtLeast(1.2.dp.toPx())
+                    val shade = (40f + 150f * b.pow(1.6f)) / 255f
+                    val ridge = Color(shade, shade, (shade * 1.03f).coerceAtMost(1f))
+                    if (vertical) drawRect(ridge, Offset(0f, pos - t / 2), Size(thick, t))
+                    else drawRect(ridge, Offset(pos - t / 2, 0f), Size(t, thick))
                 }
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(Modifier.fillMaxSize().padding(4.dp)) {
-            val thick = 4.dp.toPx()
-            val arcTopLeft = Offset(thick / 2, thick / 2)
-            val arcSize = Size(size.width - thick, size.height - thick)
-            // Un arco de 270° (abierto abajo): el fondo y, encima, lo que lleva el volumen.
-            drawArc(color = c.line, startAngle = 135f, sweepAngle = 270f, useCenter = false, topLeft = arcTopLeft, size = arcSize, style = Stroke(width = thick, cap = StrokeCap.Round))
-            val sweep = 270f * (level.toFloat() / max).coerceIn(0f, 1f)
-            if (sweep > 0f) drawArc(color = c.primary, startAngle = 135f, sweepAngle = sweep, useCenter = false, topLeft = arcTopLeft, size = arcSize, style = Stroke(width = thick, cap = StrokeCap.Round))
+                // Sombra en los extremos: da el volumen de cilindro.
+                val dark = Color.Black.copy(alpha = 0.85f)
+                val fade = arrayOf(0f to dark, 0.3f to Color.Transparent, 0.7f to Color.Transparent, 1f to dark)
+                drawRect(brush = if (vertical) Brush.verticalGradient(*fade) else Brush.horizontalGradient(*fade))
+                // La marca blanca (como la de la rueda del aire): dónde va el volumen.
+                val frac = (level.toFloat() / max).coerceIn(0f, 1f)
+                val th = (-62f + 124f * frac) * PI.toFloat() / 180f
+                val at = if (vertical) mid - r * sin(th) else mid + r * sin(th)
+                val w = 2.5.dp.toPx() * cos(th)
+                if (vertical) drawLine(Color.White, Offset(thick * 0.15f, at), Offset(thick * 0.85f, at), w, StrokeCap.Round)
+                else drawLine(Color.White, Offset(at, thick * 0.15f), Offset(at, thick * 0.85f), w, StrokeCap.Round)
+            }
         }
-        if (fixed) Icon(Icons.volume, c.text, dial * 0.4f)
-        else Label(level.toString(), Typography.subtitle, maxLines = 1)
+    }
+    val number = @Composable { m: Modifier ->
+        if (fixed) Icon(Icons.volume, c.text, 20.dp)
+        else Label(level.toString(), Typography.subtitle, maxLines = 1, modifier = m)
+    }
+    if (vertical) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        wheel()
+        number(Modifier.padding(top = 4.dp))
+    } else Row(verticalAlignment = Alignment.CenterVertically) {
+        wheel()
+        number(Modifier.padding(start = 8.dp))
     }
 }
 
-/** Cuántos puntos de volumen mueve cada clic de la rueda. */
-private const val VOLUME_STEP = 5
-
-/** Cuánto se gira la rueda por cada clic (en radianes: 0.7 son unos 40°). */
-private const val VOLUME_CLICK_RAD = 0.7f
+/** Puntos de volumen que mueve una deslizada completa a lo largo de la rueda (de 0 a 30 son 3 deslizadas). */
+private const val VOLUME_POINTS_PER_SWIPE = 10f
 
 /**
  * Aprieta la tecla de volumen dentro de la ventana de LiteDash (se permite sin permisos porque es la
