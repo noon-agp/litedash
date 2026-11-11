@@ -25,6 +25,12 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.irvingguerra.litedash.core.ui.Radius
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import kotlin.math.PI
+import kotlin.math.atan2
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.geometry.Rect
@@ -82,20 +88,19 @@ private fun Context.listen(receiver: BroadcastReceiver, action: String) =
     ContextCompat.registerReceiver(this, receiver, IntentFilter(action), ContextCompat.RECEIVER_NOT_EXPORTED)
 
 /**
- * Volumen de la música en la barra: un solo botón (bocina con el nivel). Al tocarlo flota su barra
- * hacia arriba (+ barra −; a un lado en la barra lateral) y se cierra sola a los [VOLUME_OPEN_MS] sin
- * tocarla o al tocar fuera. Con el volumen del chip de la pantalla (fijo para Android) solo + y −.
+ * Volumen de la música en la barra como una rueda táctil (dial): se desliza el dedo en círculo sobre ella;
+ * a la derecha (en el sentido del reloj) sube y a la izquierda baja. Cada "clic" de la rueda mueve el volumen
+ * [VOLUME_STEP] puntos y vibra un poco. Muestra el nivel con un arco y con el número al centro.
+ * Con el volumen del chip de la pantalla (fijo para Android) manda las teclas de volumen, como el botón físico.
  */
 @Composable
 fun Volume(buttonSize: Dp, vertical: Boolean = false) {
     val c = LocalColors.current
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val audio = remember { context.getSystemService(AudioManager::class.java) }
     val max = remember { audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
     var level by remember { mutableIntStateOf(audio.getStreamVolume(AudioManager.STREAM_MUSIC)) }
-    var open by remember { mutableStateOf(false) }
-    // Cada cambio reinicia la cuenta para cerrarse.
-    var touched by remember { mutableIntStateOf(0) }
     LifecycleStartEffect(audio) {
         level = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
         val receiver = object : BroadcastReceiver() {
@@ -104,140 +109,70 @@ fun Volume(buttonSize: Dp, vertical: Boolean = false) {
             }
         }
         context.listen(receiver, VOLUME_CHANGED)
-        onStopOrDispose {
-            context.unregisterReceiver(receiver)
-            open = false
-        }
+        onStopOrDispose { context.unregisterReceiver(receiver) }
     }
-    LaunchedEffect(open, touched) {
-        if (open) {
-            delay(VOLUME_OPEN_MS)
-            open = false
-        }
-    }
-    fun adjust(direction: Int) {
-        touched++
+    // Un clic de la rueda: sube (+1) o baja (-1) [VOLUME_STEP] puntos.
+    fun stepBy(direction: Int) {
         val before = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-        val atEdge = if (direction == AudioManager.ADJUST_RAISE) before >= max else before <= 0
-        if (!audio.isVolumeFixed) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, direction, 0)
+        val target = (before + direction * VOLUME_STEP).coerceIn(0, max)
+        if (!audio.isVolumeFixed && target != before) runCatching { audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
         level = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-        // Muchas pantallas manejan el volumen con su propio chip (Android lo tiene fijo o no lo deja
-        // cambiar: pasaba en una NWD). Entonces, la tecla de volumen como el botón físico: la toma el
-        // sistema y la lleva a ese chip (y muestra su propia barra de volumen).
-        if (level == before && !atEdge || audio.isVolumeFixed) volumeKey(if (direction == AudioManager.ADJUST_RAISE) KeyEvent.KEYCODE_VOLUME_UP else KeyEvent.KEYCODE_VOLUME_DOWN)
-    }
-    fun set(fraction: Float) {
-        touched++
-        val target = (fraction * max + 0.5f).toInt().coerceIn(0, max)
-        if (target == level) return
-        runCatching { audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
-        level = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+        // Si Android no lo dejó cambiar (la pantalla maneja su propio chip), las teclas de volumen.
+        if (audio.isVolumeFixed || (level == before && target != before)) {
+            repeat(VOLUME_STEP) { volumeKey(if (direction > 0) KeyEvent.KEYCODE_VOLUME_UP else KeyEvent.KEYCODE_VOLUME_DOWN) }
+        }
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
     val fixed = audio.isVolumeFixed
-    // Dónde está la bocina en la ventana: de ahí se acomoda la barra flotante.
-    var anchor by remember { mutableStateOf(Rect.Zero) }
+    val dial = if (vertical) buttonSize * 1.15f else buttonSize
     Box(
         Modifier
-            .size(buttonSize)
-            .onGloballyPositioned { anchor = it.boundsInWindow() }
+            .size(dial)
             .clip(CircleShape)
-            .background(if (open) c.surfaceHigh else Color.Transparent)
-            .clickable { open = !open },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(Icons.volume, c.text, buttonSize * 0.45f)
-        // El nivel en chico, en la esquina de la bocina (no con volumen fijo).
-        if (!fixed) Label(
-            level.toString(),
-            Typography.small.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
-            c.textMuted,
-            maxLines = 1,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = buttonSize * 0.14f, bottom = buttonSize * 0.12f),
-        )
-    }
-    // Flota encima de la barra (o a un lado de la lateral): no le quita lugar a las apps. Cubre toda la
-    // ventana con un fondo transparente: tocar fuera solo la cierra (no abre lo que haya abajo). No
-    // toma el enfoque: las teclas del volante siguen llegando a LiteDash.
-    if (open) Popup(popupPositionProvider = WholeWindow, properties = PopupProperties(focusable = false)) {
-        Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { open = false } }) {
-            Column(
-                Modifier
-                    .layout { measurable, constraints ->
-                        val pill = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-                        layout(constraints.maxWidth, constraints.maxHeight) {
-                            val (x, y) = if (vertical) {
-                                // A la derecha de la bocina, o a la izquierda si no cabe.
-                                val right = anchor.right.roundToInt()
-                                (if (right + pill.width <= constraints.maxWidth) right else anchor.left.roundToInt() - pill.width) to
-                                    anchor.center.y.roundToInt() - pill.height / 2
-                            } else {
-                                anchor.center.x.roundToInt() - pill.width / 2 to anchor.top.roundToInt() - pill.height
-                            }
-                            pill.place(x.coerceIn(0, maxOf(0, constraints.maxWidth - pill.width)), y.coerceIn(0, maxOf(0, constraints.maxHeight - pill.height)))
-                        }
-                    }
-                    .padding(6.dp)
-                    .shadow(12.dp, RoundedCornerShape(Radius.card))
-                    .clip(RoundedCornerShape(Radius.card))
-                    .background(c.surfaceHigh)
-                    // Tocar dentro de la píldora (fuera de sus botones) no la cierra.
-                    .pointerInput(Unit) { detectTapGestures { } }
-                    .padding(vertical = 8.dp, horizontal = 6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                IconButton(Icons.plus, { adjust(AudioManager.ADJUST_RAISE) }, size = 48.dp)
-                if (!fixed) {
-                    VolumeBar(level.toFloat() / max, ::set)
-                    Label(level.toString(), Typography.subtitle, maxLines = 1, modifier = Modifier.padding(vertical = 4.dp))
-                }
-                IconButton(Icons.minus, { adjust(AudioManager.ADJUST_LOWER) }, size = 48.dp)
-            }
-        }
-    }
-}
-
-/** La capa de la barra del volumen ocupa toda la ventana desde su esquina (la píldora se acomoda adentro). */
-private object WholeWindow : PopupPositionProvider {
-    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize) = IntOffset.Zero
-}
-
-/** La barra del volumen: se toca o se arrastra a cualquier punto; lleno = [fraction]. */
-@Composable
-private fun VolumeBar(fraction: Float, onChange: (Float) -> Unit) {
-    val c = LocalColors.current
-    val change by rememberUpdatedState(onChange)
-    fun at(offset: Offset, size: IntSize) = 1f - offset.y / size.height.coerceAtLeast(1)
-    Canvas(
-        Modifier.width(48.dp).height(VOLUME_BAR_LENGTH)
+            .background(c.surfaceHigh)
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
-                    change(at(down.position, size).coerceIn(0f, 1f))
+                    val cx = size.width / 2f
+                    val cy = size.height / 2f
+                    var last = atan2(down.position.y - cy, down.position.x - cx)
+                    var turned = 0f
                     while (true) {
                         val move = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
                         if (!move.pressed) break
                         move.consume()
-                        change(at(move.position, size).coerceIn(0f, 1f))
+                        val now = atan2(move.position.y - cy, move.position.x - cx)
+                        var delta = now - last
+                        // Cruzar de +180° a -180° no es un giro enorme.
+                        if (delta > PI.toFloat()) delta -= 2f * PI.toFloat() else if (delta < -PI.toFloat()) delta += 2f * PI.toFloat()
+                        last = now
+                        turned += delta
+                        while (turned >= VOLUME_CLICK_RAD) { stepBy(1); turned -= VOLUME_CLICK_RAD }
+                        while (turned <= -VOLUME_CLICK_RAD) { stepBy(-1); turned += VOLUME_CLICK_RAD }
                     }
                 }
             },
+        contentAlignment = Alignment.Center,
     ) {
-        // Como la de iOS: una píldora ancha que se llena desde abajo.
-        val thick = 14.dp.toPx()
-        val x = size.width / 2
-        val top = thick / 2
-        val bottom = size.height - thick / 2
-        val y = bottom - (bottom - top) * fraction.coerceIn(0f, 1f)
-        drawLine(c.line, Offset(x, top), Offset(x, bottom), thick, StrokeCap.Round)
-        drawLine(c.primary, Offset(x, y), Offset(x, bottom), thick, StrokeCap.Round)
+        Canvas(Modifier.fillMaxSize().padding(4.dp)) {
+            val thick = 4.dp.toPx()
+            val arcTopLeft = Offset(thick / 2, thick / 2)
+            val arcSize = Size(size.width - thick, size.height - thick)
+            // Un arco de 270° (abierto abajo): el fondo y, encima, lo que lleva el volumen.
+            drawArc(color = c.line, startAngle = 135f, sweepAngle = 270f, useCenter = false, topLeft = arcTopLeft, size = arcSize, style = Stroke(width = thick, cap = StrokeCap.Round))
+            val sweep = 270f * (level.toFloat() / max).coerceIn(0f, 1f)
+            if (sweep > 0f) drawArc(color = c.primary, startAngle = 135f, sweepAngle = sweep, useCenter = false, topLeft = arcTopLeft, size = arcSize, style = Stroke(width = thick, cap = StrokeCap.Round))
+        }
+        if (fixed) Icon(Icons.volume, c.text, dial * 0.4f)
+        else Label(level.toString(), Typography.subtitle, maxLines = 1)
     }
 }
 
-/** Lo que la barra del volumen sigue abierta sin tocarla. */
-private const val VOLUME_OPEN_MS = 4_000L
+/** Cuántos puntos de volumen mueve cada clic de la rueda. */
+private const val VOLUME_STEP = 5
 
-private val VOLUME_BAR_LENGTH = 160.dp
-
+/** Cuánto se gira la rueda por cada clic (en radianes: 0.7 son unos 40°). */
+private const val VOLUME_CLICK_RAD = 0.7f
 
 /**
  * Aprieta la tecla de volumen dentro de la ventana de LiteDash (se permite sin permisos porque es la
